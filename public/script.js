@@ -1,8 +1,12 @@
 const socket = io("/");
 const videoGrid = document.getElementById("video-grid");
 const myPeer = new Peer(undefined, {
+  // for local:
   host: "localhost",
   port: 3001,
+
+  // for prod:
+  // host: "cheapcode.live",
   // path: "api",
 });
 const myVideo = document.createElement("video");
