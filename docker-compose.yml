@@ -1,0 +1,16 @@
+version: "3.9"
+services:
+  backend:
+    build:
+      context: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: npm run devStart
+
+  peerjs:
+    image: "peerjs/peerjs-server"
+    ports:
+      - "3001:9000"
