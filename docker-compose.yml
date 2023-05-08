@@ -3,12 +3,9 @@ services:
   backend:
     build:
       context: .
+      dockerfile: prod.Dockerfile
     ports:
       - "3000:3000"
-    volumes:
-      - .:/app
-      - /app/node_modules
-    command: npm run devStart
 
   peerjs:
     image: "peerjs/peerjs-server"

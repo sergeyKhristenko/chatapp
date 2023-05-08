@@ -1,4 +1,4 @@
-FROM node:18
+FROM node:18-slim
 
 # Create app directory
 WORKDIR /app
@@ -8,7 +8,7 @@ WORKDIR /app
 # where available (npm@5+)
 COPY package*.json ./
 
-RUN npm install
+RUN npm install --production
 # If you are building your code for production
 # RUN npm ci --omit=dev
 
@@ -17,4 +17,4 @@ COPY . .
 
 EXPOSE 8080
 
-CMD [ "npm", "run", "devStart" ]
+CMD [ "npm", "run", "start" ]
