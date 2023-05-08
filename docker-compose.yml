@@ -1,0 +1,13 @@
+version: "3.9"
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: prod.Dockerfile
+    ports:
+      - "3000:3000"
+
+  peerjs:
+    image: "peerjs/peerjs-server"
+    ports:
+      - "3001:9000"
