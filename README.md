@@ -5,7 +5,8 @@
 
 ## RUNNING BARE METAL
 - `cd chatapp`
-- `npm run devStart`
+- install Deno - `brew install deno`
+- `cd backend && deno task dev`
 - `npm i peer -g` (https://github.com/peers/peerjs-server)
 - open another terminal and run `peerjs --proxied --port 3001`
 - make sure to place nginx-sites-enabled.conf under "/etc/nginx/sites-enabled"

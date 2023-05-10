@@ -1,0 +1,9 @@
+{
+  "tasks": {
+    "dev": "deno run --watch --allow-read --allow-write --allow-net --allow-env --allow-run ./server.ts",
+    "prod": "deno run --allow-read --allow-write --allow-net --allow-env --allow-run ./server.ts"
+  },
+  "compilerOptions": {
+    "noImplicitAny": false
+  }
+}
