@@ -1,6 +1,7 @@
 import {
   Application,
   Router,
+  Status,
   crypto,
   ServerSentEvent,
   ServerSentEventTarget,
@@ -10,21 +11,24 @@ const sockets: { [roomID: string]: ServerSentEventTarget[] } = {};
 
 const router = new Router();
 router.get("/", (ctx) => {
-  ctx.response.body = `<!DOCTYPE html>
-    <html>
-      <head><title>Hello oak!</title><head>
-      <body>
-        <a href='/newRoom'>Create new room <a/>
-      </body>
-    </html>
-  `;
+  ctx.response.status = Status.OK;
+  // ctx.response.body = `<!DOCTYPE html>
+  //   <html>
+  //     <head><title>Hello oak!</title><head>
+  //     <body>
+  //       <a href='/newRoom'>Create new room <a/>
+  //     </body>
+  //   </html>
+  // `;
 });
 
 router.get("/newRoom", (ctx) => {
   const newRoomID = crypto.randomUUID();
   sockets[newRoomID] = [];
 
-  ctx.response.redirect(`/room/${newRoomID}`);
+  ctx.response.body = { roomId: newRoomID };
+  ctx.response.type = "application/json";
+  ctx.response.status = Status.OK;
 });
 
 router.post("/room/:ROOMID", async (ctx) => {
@@ -38,7 +42,7 @@ router.post("/room/:ROOMID", async (ctx) => {
     socket.dispatchEvent(event);
   });
 
-  ctx.response.status = 200;
+  ctx.response.status = Status.Accepted;
 });
 
 router.get("/sse/:ROOMID", (ctx) => {
