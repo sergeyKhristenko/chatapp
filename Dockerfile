@@ -1,19 +1,23 @@
-FROM node:18-slim
-
-EXPOSE 3000
-
+# build
+FROM node:18-alpine AS build
 WORKDIR /app
+COPY ./backend ./
+RUN npm install
+RUN npm run build
 
-# # Cache the dependencies as a layer (the following two steps are re-run only when deps.ts is modified).
-# # Ideally cache deps.ts will download and compile _all_ external files used in main.ts.
-COPY ./backend/package*.json ./
-
+# install prod modules
+FROM node:18-alpine AS install-prod
+WORKDIR /app
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/package*.json ./package*.json ./
 RUN npm install --production
 
-# These steps will be re-run upon each file change in your working directory:
-ADD ./backend/ .
+# run the app
+FROM gcr.io/distroless/nodejs18-debian11 
+EXPOSE 3000
+WORKDIR /app
+COPY --from=install-prod /app .
 
-RUN npm run build
-# Compile the main app so that it doesn't need to be compiled each startup/entry.
+ENV NODE_ENV production
 
-CMD ["node", "./dist/index.js"]
+CMD ["./dist/index.js"]
