@@ -14,8 +14,8 @@ export default function Room() {
   const userVideo = useRef(null);
 
   const [localStream, setLocalStream] = useState();
-  //   const [remoteStream, setRemoteStream] = useState();
-  const remoteStream = useRef(new MediaStream());
+  const [remoteStream, setRemoteStream] = useState(new MediaStream());
+  //   const remoteStream = useRef(new MediaStream());
 
   const peerConnection = useRef(
     new RTCPeerConnection({
@@ -43,7 +43,10 @@ export default function Room() {
 
     peerConnection.current.ontrack = (event) => {
       // @ts-ignore
-      remoteStream.current.addTrack(event.track);
+      //   remoteStream.current.addTrack(event.track);
+
+      console.log('should set remote stream')
+      setRemoteStream(event.streams[0]);
       //   userVideo.current.addTrack(event.track);
     };
 
@@ -71,8 +74,8 @@ export default function Room() {
   useEffect(() => {
     console.log("setting remoteStream");
     // @ts-ignore
-    userVideo.current.srcObject = remoteStream.current;
-  }, [remoteStream]);
+    userVideo.current.srcObject = remoteStream;
+  }, [remoteStream, userVideo]);
 
   useEffect(() => {
     console.log("emit join-room");
