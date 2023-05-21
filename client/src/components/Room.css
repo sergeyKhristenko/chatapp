@@ -1,0 +1,30 @@
+.my-video {
+  transform: rotatey(180deg);
+  width: 320px;
+  height: 240px;
+  border: 1px solid black;
+}
+
+@keyframes App-logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.remote-video-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 640px;
+  height: 420px;
+  border: 1px solid black;
+}
+
+.videos-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

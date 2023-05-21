@@ -13,11 +13,14 @@ interface ServerToClientEvents {
   "user-disconnected": () => void;
   offer: (offerObj: {}) => void;
   answer: (answerObj: {}) => void;
-  iceCandidate: (iceCandidate: {}) => void;
+  offerCandidate: (iceCandidate: {}) => void;
   answerCandidate: (iceCandidate: {}) => void;
 }
 
 const url = "http://localhost:3000";
+// const url = "https://chat.cheapcode.live";
 
-export const socket: Socket<ServerToClientEvents, ClientToServerEvents> =
-  io(url);
+export const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io(
+  url,
+  { forceNew: true }
+);

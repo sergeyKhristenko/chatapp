@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
+import "./Room.css";
 
 import { socket } from "../socket";
 
@@ -13,7 +14,8 @@ export default function Room() {
   const userVideo = useRef(null);
 
   const [localStream, setLocalStream] = useState();
-  const [remoteStream, setRemoteStream] = useState();
+  //   const [remoteStream, setRemoteStream] = useState();
+  const remoteStream = useRef(new MediaStream());
 
   const peerConnection = useRef(
     new RTCPeerConnection({
@@ -26,6 +28,29 @@ export default function Room() {
   );
 
   let remoteRTCMessage = useRef({});
+
+  useEffect(() => {
+    peerConnection.current.onicecandidate = (event) => {
+      console.log("new ice candidate");
+      if (event.candidate) {
+        socket.emit("new-answerCandidate", event.candidate);
+      } else {
+        console.log("End of candidates.");
+      }
+    };
+
+    peerConnection.current.createDataChannel("channel");
+
+    peerConnection.current.ontrack = (event) => {
+      // @ts-ignore
+      remoteStream.current.addTrack(event.track);
+      //   userVideo.current.addTrack(event.track);
+    };
+
+    // .onaddstream = event => {
+    //     setRemoteStream(event.stream);
+    //   };
+  }, []);
 
   useEffect(() => {
     navigator.mediaDevices
@@ -44,47 +69,32 @@ export default function Room() {
   }, []);
 
   useEffect(() => {
+    console.log("setting remoteStream");
     // @ts-ignore
-    if (remoteStream && remoteStream?.current) {
-      // @ts-ignore
-      userVideo.current.srcObject = remoteStream;
-    }
+    userVideo.current.srcObject = remoteStream.current;
   }, [remoteStream]);
 
   useEffect(() => {
+    console.log("emit join-room");
     // @ts-ignore
     socket.emit("join-room", roomId);
 
-    return () => {
-      socket.disconnect();
-    };
-  }, [roomId]);
+    // return () => {
+    //   socket.disconnect();
+    // };
 
-  socket.on("user-connected", () => {
-    console.log("user connected");
-  });
+    socket.on("user-connected", async () => {
+      console.log("user connected");
+      await processCall();
+    });
 
-  useEffect(() => {
-    peerConnection.current.onicecandidate = (event) => {
-      console.log("new ice candidate");
-      if (event.candidate) {
-        socket.emit("new-iceCandidate", event.candidate);
-      } else {
-        console.log("End of candidates.");
-      }
-    };
+    socket.on("user-disconnected", () => {
+      console.log("user disconnected");
 
-    peerConnection.current.createDataChannel("channel");
-
-    peerConnection.current.ontrack = (event) => {
       // @ts-ignore
-      userVideo.current.srcObject = event.streams[0];
-    };
-
-    // .onaddstream = event => {
-    //     setRemoteStream(event.stream);
-    //   };
-  }, []);
+      userVideo.current.srcObject = null;
+    });
+  }, [roomId]);
 
   useEffect(() => {
     socket.on("offer", async (data) => {
@@ -95,6 +105,26 @@ export default function Room() {
       await processAccept();
     });
 
+    socket.on("answerCandidate", (candidate) => {
+      console.log("answerCandidate");
+      peerConnection.current.addIceCandidate(
+        // @ts-ignore
+        new RTCIceCandidate(candidate)
+      );
+
+      //   if (remoteRTCMessage.current) {
+      //     remoteRTCMessage?.current
+      //       //@ts-ignore
+      //       .addIceCandidate(new RTCIceCandidate(candidate))
+      //       .then((data: {}) => {
+      //         console.log("SUCCESS");
+      //       })
+      //       .catch((err: {}) => {
+      //         console.log("Error", err);
+      //       });
+      //   }
+    });
+
     socket.on("answer", async (data) => {
       console.log("answer");
 
@@ -102,39 +132,24 @@ export default function Room() {
 
       peerConnection.current.setRemoteDescription(
         // @ts-ignore
-        new RTCSessionDescription(remoteRTCMessage.current)
+        new RTCSessionDescription(data)
       );
     });
 
-    socket.on("answerCandidate", (candidate) => {
-      console.log("answerCandidate");
-      if (remoteRTCMessage.current) {
-        remoteRTCMessage?.current
-          //@ts-ignore
-          .addIceCandidate(new RTCIceCandidate(candidate))
-          .then((data: {}) => {
-            console.log("SUCCESS");
-          })
-          .catch((err: {}) => {
-            console.log("Error", err);
-          });
-      }
-    });
+    // socket.on("offerCandidate", (candidate) => {
+    //   console.log("offerCandidate");
 
-    socket.on("iceCandidate", (candidate) => {
-      console.log("offerCandidate");
-
-      if (peerConnection.current) {
-        peerConnection?.current
-          .addIceCandidate(new RTCIceCandidate(candidate))
-          .then((data) => {
-            console.log("SUCCESS");
-          })
-          .catch((err) => {
-            console.log("Error", err);
-          });
-      }
-    });
+    //   if (peerConnection.current) {
+    //     peerConnection?.current
+    //       .addIceCandidate(new RTCIceCandidate(candidate))
+    //       .then((data) => {
+    //         console.log("SUCCESS");
+    //       })
+    //       .catch((err) => {
+    //         console.log("Error", err);
+    //       });
+    //   }
+    // });
   }, []);
 
   async function processCall() {
@@ -168,10 +183,10 @@ export default function Room() {
 
   return (
     <div>
-      welcome to : {roomId}
+      <header>Room {roomId}</header>
       <button onClick={processCall}>make call</button>
-      <video ref={myVideo} autoPlay></video>
-      <video ref={userVideo} autoPlay></video>
+      <video ref={myVideo} muted={true} autoPlay className="my-video"></video>
+      {remoteStream && <video ref={userVideo} autoPlay></video>}
     </div>
   );
 }
