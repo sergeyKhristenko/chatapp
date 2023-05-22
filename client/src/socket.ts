@@ -17,8 +17,8 @@ interface ServerToClientEvents {
   answerCandidate: (iceCandidate: {}) => void;
 }
 
-const url = "http://localhost:3000";
-// const url = "https://chat.cheapcode.live";
+// const url = "http://localhost:3000";
+const url = "https://chat.cheapcode.live";
 
 export const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io(
   url,

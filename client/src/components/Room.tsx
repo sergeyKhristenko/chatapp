@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
+import adapter from 'webrtc-adapter';
 import "./Room.css";
 
 import { socket } from "../socket";
@@ -27,7 +28,7 @@ export default function Room() {
     })
   );
 
-  let remoteRTCMessage = useRef({});
+  //   let remoteRTCMessage = useRef({});
 
   useEffect(() => {
     peerConnection.current.onicecandidate = (event) => {
@@ -39,24 +40,26 @@ export default function Room() {
       }
     };
 
-    peerConnection.current.createDataChannel("channel");
+    // peerConnection.current.createDataChannel("channel");
 
     peerConnection.current.ontrack = (event) => {
       // @ts-ignore
       //   remoteStream.current.addTrack(event.track);
 
-      console.log('should set remote stream')
+      console.log("should set remote stream");
       setRemoteStream(event.streams[0]);
       //   userVideo.current.addTrack(event.track);
     };
+
+    getMediaDevices();
 
     // .onaddstream = event => {
     //     setRemoteStream(event.stream);
     //   };
   }, []);
 
-  useEffect(() => {
-    navigator.mediaDevices
+  async function getMediaDevices() {
+    await navigator.mediaDevices
       .getUserMedia({ video: true, audio: true })
       .then((currentStream) => {
         // @ts-ignore
@@ -69,7 +72,23 @@ export default function Room() {
           peerConnection.current.addTrack(track, currentStream);
         });
       });
-  }, []);
+  }
+
+//   useEffect(() => {
+//     navigator.mediaDevices
+//       .getUserMedia({ video: true, audio: true })
+//       .then((currentStream) => {
+//         // @ts-ignore
+//         setLocalStream(currentStream);
+
+//         // @ts-ignore
+//         myVideo.current.srcObject = currentStream;
+//         // @ts-ignore
+//         currentStream.getTracks().forEach((track) => {
+//           peerConnection.current.addTrack(track, currentStream);
+//         });
+//       });
+//   }, []);
 
   useEffect(() => {
     console.log("setting remoteStream");
@@ -88,6 +107,7 @@ export default function Room() {
 
     socket.on("user-connected", async () => {
       console.log("user connected");
+
       await processCall();
     });
 
@@ -102,10 +122,12 @@ export default function Room() {
   useEffect(() => {
     socket.on("offer", async (data) => {
       console.log("offer");
-      remoteRTCMessage.current = data;
+      //   remoteRTCMessage.current = data;
       //   setType("INCOMING_CALL");
 
-      await processAccept();
+    //   setTimeout(async () => {
+        await processAccept(data);
+    //   }, 2000);
     });
 
     socket.on("answerCandidate", (candidate) => {
@@ -131,7 +153,7 @@ export default function Room() {
     socket.on("answer", async (data) => {
       console.log("answer");
 
-      remoteRTCMessage.current = data;
+      //   remoteRTCMessage.current = data;
 
       peerConnection.current.setRemoteDescription(
         // @ts-ignore
@@ -162,10 +184,10 @@ export default function Room() {
     sendCall(sessionDescription);
   }
 
-  async function processAccept() {
+  async function processAccept(data: {}) {
     peerConnection.current.setRemoteDescription(
       // @ts-ignore
-      new RTCSessionDescription(remoteRTCMessage.current)
+      new RTCSessionDescription(data)
     );
 
     const sessionDescription = await peerConnection.current.createAnswer();
@@ -189,7 +211,7 @@ export default function Room() {
       <header>Room {roomId}</header>
       <button onClick={processCall}>make call</button>
       <video ref={myVideo} muted={true} autoPlay className="my-video"></video>
-      {remoteStream && <video ref={userVideo} autoPlay></video>}
+      <video ref={userVideo} autoPlay></video>
     </div>
   );
 }
