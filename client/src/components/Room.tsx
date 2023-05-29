@@ -1,18 +1,59 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import adapter from "webrtc-adapter";
-import PeerConnection from "../peerConnection";
-
-import { v4 as uuid } from "uuid";
+import IconButton from "@mui/material/IconButton";
+import MdPhone from "@mui/icons-material/Phone";
+import { Button, ButtonGroup, Chip } from "@mui/material";
+import MicOffIcon from "@mui/icons-material/MicOff";
+import CameraAltIcon from "@mui/icons-material/CameraAlt";
+import { alpha } from "@mui/material";
+import { Rnd } from "react-rnd";
 
 import "./Room.css";
 
-// import { randomUUID } from "crypto";
+import { MediaConnection, Peer } from "peerjs";
+
 import { socket } from "../socket";
+import { Mic, NoPhotography } from "@mui/icons-material";
+
+import { createTheme } from "@mui/material/styles";
+
+const theme = createTheme({
+  palette: {
+    primary: {
+      light: "#757ce8",
+      main: "#3f50b5",
+      dark: "#002884",
+      contrastText: "#fff",
+    },
+    secondary: {
+      light: "#ff7961",
+      main: "#f44336",
+      dark: "#ba000d",
+      contrastText: "#000",
+    },
+  },
+});
+
+const peerJsLocalConfig = {
+  host: "/",
+  port: 3001,
+};
+
+const peerJsConfig = {
+  host: "/",
+  path: "peer",
+};
 
 export default function Room() {
-  type CallType = "call" | "answer";
-  const callType = useRef("call");
+  const myPeer = useRef(
+    new Peer(
+      // @ts-ignore
+      undefined,
+      window.location.protocol === "https:" ? peerJsConfig : peerJsLocalConfig
+    )
+  );
+
+  const peers = useRef<{ [key: string]: MediaConnection }>({});
 
   type RoomParams = {
     id: string;
@@ -20,342 +61,269 @@ export default function Room() {
 
   const { id: roomId } = useParams<RoomParams>();
 
-  const myVideo = useRef(null);
-  //   const userVideo = useRef(null);
+  const [myUserId, setMyUserId] = useState<string>();
 
-  let localStream: MediaStream | null = null;
+  const hostVideo = useRef<HTMLVideoElement>(null);
+  const guestVideo = useRef<HTMLVideoElement>(null);
 
-  //   const [localStream, setLocalStream] = useState<MediaStream>();
-  //   const [remoteStream, setRemoteStream] = useState(new MediaStream());
-  //   const remoteStream = useRef(new MediaStream());
+  const localAudioStream = useRef<MediaStreamTrack>();
+  const localVideoStream = useRef<MediaStreamTrack>();
 
-  //   const remoteStreams = useRef<{ [key: string]: MediaStream }>({});
-  const remoteStreamsObj = {};
-  const [remoteStreams, setRemoteStreams] = useState<{
-    [key: string]: MediaStream;
-  }>({});
+  const [localAudioStreamEnabled, setLocalAudioStreamEnabled] = useState(true);
+  const [localVideoStreamEnabled, setLocalVideoStreamEnabled] = useState(true);
+
+  const remoteStreamsObj: { [key: string]: MediaStream } = {};
+  const [remoteStream, setRemoteStream] = useState<MediaStream>();
   const connections = useRef<{ [key: string]: RTCPeerConnection }>({});
 
-  const myUserId = uuid();
+  const [localStream, setLocalStream] = useState<MediaStream>();
 
-  //   const peerConnection = useRef(
-  //     new RTCPeerConnection({
-  //       iceServers: [
-  //         {
-  //           urls: "stun:stun.l.google.com:19302",
-  //         },
-  //       ],
-  //     })
-  //   );
-  const peerConnectionConfig = {
-    iceServers: [
-      {
-        urls: "stun:stun.l.google.com:19302",
-      },
-    ],
+  const callUser = (userId: string, localStream: MediaStream) => {
+    const call = myPeer.current.call(userId, localStream);
+    console.log(`calling ${userId}`);
+    call.on("stream", (stream) => {
+      console.log("on stream");
+      setRemoteStream(stream);
+    });
+    peers.current[userId] = call;
   };
-
-  //   function setupPeerConnection(userId: string) {
-  //     const newConnection = new RTCPeerConnection({
-  //       iceServers: [
-  //         {
-  //           urls: "stun:stun.l.google.com:19302",
-  //         },
-  //       ],
-  //     });
-
-  //     connections.current[userId] = newConnection;
-
-  //     console.log(`connecting to ${userId}`);
-
-  //     newConnection.onicecandidate = (event) => {
-  //       console.log("new ice candidate");
-  //       if (event.candidate) {
-  //         socket.emit("new-answerCandidate", event.candidate, userId);
-  //       } else {
-  //         console.log("End of candidates.");
-  //       }
-  //     };
-  //   }
 
   useEffect(() => {
     // init local stream before setting connection
-    getMediaDevices();
-  }, []);
-
-  async function getMediaDevices() {
-    return await navigator.mediaDevices
+    navigator.mediaDevices
       .getUserMedia({ video: true, audio: true })
-      .then((currentStream) => {
-        // @ts-ignore
+      .then((stream) => {
+        stream.getTracks().forEach((track: MediaStreamTrack) => {
+          if (track.kind === "audio") localAudioStream.current = track;
+          if (track.kind === "video") localVideoStream.current = track;
+        });
 
-        localStream = currentStream;
-
-        // @ts-ignore
-        myVideo.current.srcObject = currentStream;
-
-        return currentStream;
-
-        // currentStream.getTracks().forEach((track) => {
-        //   peerConnection.current.addTrack(track, currentStream);
-        // });
+        setLocalStream(stream);
       });
-  }
-
-  //   useEffect(() => {
-  //     console.log("setting remoteStream");
-  //     // @ts-ignore
-  //     userVideo.current.srcObject = remoteStream;
-  //   }, [remoteStream, userVideo]);
-
-  function setUpPeer(peerUuid: string, initCall = false) {
-    console.log(`setupPeer ${peerUuid}`);
-    connections.current[peerUuid] = new RTCPeerConnection(peerConnectionConfig);
-    connections.current[peerUuid].onicecandidate = (event) =>
-      gotIceCandidate(event, peerUuid);
-    connections.current[peerUuid].ontrack = (event) =>
-      gotRemoteStream(event, peerUuid);
-    // connections.current[peerUuid].oniceconnectionstatechange = (event) =>
-    //   checkPeerDisconnect(event, peerUuid);
-    // remoteStreams[peerUuid] .addTrack(localStream);
-
-    // @ts-ignore
-    localStream.getTracks().forEach((track: MediaStreamTrack) => {
-      // @ts-ignore
-      connections.current[peerUuid].addTrack(track, localStream);
-    });
-
-    if (initCall) {
-      connections.current[peerUuid].createOffer().then((description) => {
-        connections.current[peerUuid].setLocalDescription(description);
-        sendCall(description, peerUuid, myUserId);
-      });
-    }
-  }
-
-  function gotRemoteStream(event: RTCTrackEvent, userId: string) {
-    console.log(`gotRemoteStream. UserId: ${userId}`);
-
-    // @ts-ignore
-    remoteStreamsObj[userId] = event.streams[0];
-
-    setRemoteStreams({ ...remoteStreamsObj, [userId]: event.streams[0] });
-    // remoteStreams.current[userId] = event.streams[0];
-  }
-
-  function gotIceCandidate(event: RTCPeerConnectionIceEvent, userId: string) {
-    if (event.candidate) {
-      socket.emit("new-answerCandidate", event.candidate, userId, myUserId);
-    } else {
-      console.log("End of candidates.");
-    }
-  }
-
-  useEffect(() => {
-    console.log("emit join-room");
-
-    if (roomId) {
-      setupConnection().then(() => {
-        socket.emit("join-room", roomId, myUserId);
-      });
-    }
-
-    // return () => {
-    //   socket.disconnect();
-    // };
-
-    socket.on("user-connected", async (userId) => {
-      console.log("user connected");
-
-      await setUpPeer(userId, true);
-
-      //   // if(userId === myUserId) return;
-
-      //   await setupConnection(userId);
-
-      //   console.log(connections.current);
-
-      //   await processCall(userId);
-
-      //   // @ts-ignore
-      //   localStream.getTracks().forEach((track: MediaStreamTrack) => {
-      //     // @ts-ignore
-      //     connections.current[userId].addTrack(track, localStream);
-      //   });
-
-      //   connections.current[userId].ontrack = (event) => {
-      //     // @ts-ignore
-      //     //   remoteStream.current.addTrack(event.track);
-      //     console.log("ontrack");
-      //     console.log(event);
-      //     setRemoteStreams({ ...remoteStreams, [userId]: event.streams[0] });
-      //     //   if (!remoteStreams.current[userId])
-      //     //     remoteStreams.current[userId] = new MediaStream();
-      //     //   remoteStreams.current[userId].addTrack(event.track);
-      //     console.log(remoteStreams);
-      //     //   userVideo.current.addTrack(event.track);
-      //   };
-    });
-
-    socket.on("user-disconnected", () => {
-      console.log("user disconnected");
-
-      // @ts-ignore
-      //   userVideo.current.srcObject = null;
-    });
-  }, [roomId]);
-
-  async function setupConnection() {
-    if (!localStream) await getMediaDevices();
-
-    // if(userId === myUserId) return;
-
-    // console.log(connections.current);
-    // if (connections.current[userId]) return;
-
-    // // await setupPeerConnection(userId);
-
-    // console.log(connections.current);
-
-    // // await processCall(userId);
-
-    // // @ts-ignore
-    // localStream.getTracks().forEach((track: MediaStreamTrack) => {
-    //   // @ts-ignore
-    //   connections.current[userId].addTrack(track, localStream);
-    // });
-
-    // connections.current[userId].ontrack = (event) => {
-    //   // @ts-ignore
-    //   //   remoteStream.current.addTrack(event.track);
-    //   console.log("ontrack");
-    //   console.log(event);
-    //   setRemoteStreams({ ...remoteStreams, [userId]: event.streams[0] });
-    //   //   if (!remoteStreams.current[userId])
-    //   //     remoteStreams.current[userId] = new MediaStream();
-    //   //   remoteStreams.current[userId].addTrack(event.track);
-    //   console.log(remoteStreams);
-    //   //   userVideo.current.addTrack(event.track);
-    // };
-  }
-
-  useEffect(() => {
-    socket.on("offer", async (data, userIdTo, userIdFrom) => {
-      console.log(`offer to: ${userIdTo}`);
-      console.log(`offer from: ${userIdFrom}`);
-      console.log(`my id: ${myUserId}`);
-
-      if (userIdTo !== myUserId) return;
-
-      await setUpPeer(userIdFrom);
-
-      //   remoteStreams.current[userId] = new MediaStream();
-
-      //   remoteRTCMessage.current = data;
-      //   setType("INCOMING_CALL");
-
-      //   setTimeout(async () => {
-      await processAccept(data, userIdTo, userIdFrom);
-      //   }, 2000);
-    });
-
-    socket.on("answerCandidate", (candidate, userIdTo, userIdFrom) => {
-      if (userIdTo !== myUserId) return;
-
-      // @ts-ignore
-      connections.current[userIdFrom].addIceCandidate(
-        // @ts-ignore
-        new RTCIceCandidate(candidate)
-      );
-
-      //   if (remoteRTCMessage.current) {
-      //     remoteRTCMessage?.current
-      //       //@ts-ignore
-      //       .addIceCandidate(new RTCIceCandidate(candidate))
-      //       .then((data: {}) => {
-      //         console.log("SUCCESS");
-      //       })
-      //       .catch((err: {}) => {
-      //         console.log("Error", err);
-      //       });
-      //   }
-    });
-
-    socket.on("answer", async (data, userIdTo, userIdFrom) => {
-      console.log(`answer to: ${userIdTo}`);
-      console.log(`answer from: ${userIdFrom}`);
-      console.log(connections.current);
-
-      if (userIdFrom !== myUserId) return;
-
-      //   if (connections.current[userId]) return;
-      //   await setUpPeer(userId);
-
-      //   remoteRTCMessage.current = data;
-      //   if (connections.current[userId]) return;
-
-      connections.current[userIdTo].setRemoteDescription(
-        // @ts-ignore
-        new RTCSessionDescription(data)
-      );
-
-      //   remoteStreams.current[userId] = new MediaStream();
-    });
   }, []);
 
-  async function processCall(userIdTo: string, userIdFrom: string) {
-    const connection = connections.current[userIdFrom];
+  useEffect(() => {
+    if (localStream) {
+      hostVideo.current!.srcObject = localStream;
 
-    const sessionDescription = await connection.createOffer();
-    await connection.setLocalDescription(sessionDescription);
+      myPeer.current.on("open", (id) => {
+        setMyUserId(id);
+        if (roomId) {
+          console.log(`join-room ${roomId} ${id}`);
+          socket.emit("join-room", roomId, id);
+        }
+      });
 
-    sendCall(sessionDescription, userIdTo, userIdFrom);
+      myPeer.current.on("disconnected", () => {
+        console.log("reconnecting ");
+        // myPeer.current.reconnect();
+      });
+
+      myPeer.current.on("close", () => {
+        console.log("on close");
+      });
+
+      myPeer.current.on("error", (err) => {
+        console.log("on error");
+        console.log(err);
+      });
+
+      myPeer.current.on("call", (call) => {
+        console.log("on call");
+        call.answer(localStream);
+        call.on("stream", (stream) => {
+          console.log("on remote stream");
+          setRemoteStream(stream);
+        });
+
+        call.on("error", (error) => {
+          console.log("error ", error);
+        });
+      });
+
+      socket.on("user-connected", async (userId) => {
+        console.log(`user connected ${userId}`);
+        callUser(userId, localStream);
+      });
+
+      socket.on("user-disconnected", async (userId) => {
+        console.log(`user disconnected ${userId}`);
+        peers.current[userId]?.close();
+      });
+    }
+  }, [localStream]);
+
+  useEffect(() => {
+    if (remoteStream) {
+      guestVideo.current!.srcObject = remoteStream;
+    }
+  }, [remoteStream, guestVideo]);
+
+  function reconnect(
+    event?: React.MouseEvent<HTMLButtonElement>,
+    peerUuid?: string
+  ) {
+    if (event) event.preventDefault();
+
+    myPeer.current.reconnect();
+
+    // let registered = false;
+
+    // if (registered) return;
+
+    // return (() => {
+    //   registered = true;
+    //   const reconnectInterval = setInterval(() => {
+    //     console.log("reconnecting...");
+    //     console.log("socket.connected ", socket.connected);
+
+    //     Object.values(connections.current).forEach((connection) =>
+    //       connection.close()
+    //     );
+    //     connections.current = {};
+
+    //     if (socket.connected && roomId) {
+    //       console.log("joining-room");
+
+    //       // @ts-ignore
+    //       socket.emit("join-room", roomId, myUserId);
+
+    //       clearInterval(reconnectInterval);
+    //     }
+    //   }, 1000);
+    // })();
   }
 
-  async function processAccept(data: {}, userIdTo: string, userIdFrom: string) {
-    const connection = connections.current[userIdFrom];
-
-    connection.setRemoteDescription(
-      // @ts-ignore
-      new RTCSessionDescription(data)
-    );
-
-    const sessionDescription = await connection.createAnswer();
-
-    await connection.setLocalDescription(sessionDescription);
-    answerCall(sessionDescription, userIdTo, userIdFrom);
+  function setFullScreen(event: React.MouseEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    document.body.requestFullscreen();
   }
 
-  function sendCall(data: {}, userIdTo: string, userIdFrom: string) {
-    callType.current = "call";
-    socket.emit("new-offer", data, userIdTo, userIdFrom);
+  function exitCall(event: React.MouseEvent<HTMLButtonElement>) {
+    event.preventDefault();
+
+    Object.entries(connections.current).forEach(([userId, connection]) => {
+      connection.close();
+      delete connections.current[userId];
+    });
+
+    Object.keys(remoteStreamsObj).forEach((userId) => {
+      delete remoteStreamsObj[userId];
+    });
+    // setRemoteStream();
   }
 
-  function answerCall(data: {}, userIdTo: string, userIdFrom: string) {
-    callType.current = "answer";
+  function switchAudio(event: React.MouseEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    localAudioStream.current!.enabled = !localAudioStream.current!.enabled;
+    setLocalAudioStreamEnabled(localAudioStream.current!.enabled);
+  }
 
-    socket.emit("new-answer", data, userIdTo, userIdFrom);
+  function switchVideo(event: React.MouseEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    localVideoStream.current!.enabled = !localVideoStream.current!.enabled;
+    setLocalVideoStreamEnabled(localVideoStream.current!.enabled);
   }
 
   return (
     <div>
       <header>Room {roomId}</header>
-      {/* <button onClick={processCall}>make call</button> */}
-      <video ref={myVideo} muted={true} autoPlay className="my-video"></video>
-
-      {Object.entries(remoteStreams).map(([userId, stream]) => {
-        return (
+      <div className="video-container">
+        <Rnd
+          default={{
+            x: 240,
+            y: 500,
+            width: 150,
+            height: 250,
+          }}
+          // minWidth={150}
+          // minHeight={250}
+          bounds="window"
+        >
           <video
+            muted={true}
+            playsInline={true}
             autoPlay
-            key={userId}
-            muted
-            ref={(ref) => {
-              if (ref) ref.srcObject = stream;
-            }}
+            ref={hostVideo}
+            className="small-video"
           />
-        );
+        </Rnd>
+      </div>
 
-      })}
+      <video
+        autoPlay
+        playsInline={true}
+        ref={guestVideo}
+        className="big-video"
+      />
+
+      <footer>
+        {/* <button onClick={setFullScreen}>set full screen</button> */}
+
+        <ButtonGroup
+          sx={{
+            width: "500px",
+            display: "flex",
+            justifyContent: "space-evenly",
+          }}
+        >
+          <Button
+            variant="contained"
+            size="large"
+            disableRipple
+            disableFocusRipple
+            disableTouchRipple
+            sx={{
+              minWidth: "50px",
+              minHeight: "50px",
+              width: "50px",
+              height: "50px",
+              // color: "white",
+              bgcolor: (theme) => alpha(theme.palette.text.secondary, 0.5),
+              ":focus": {
+                bgcolor: (theme) => alpha(theme.palette.text.secondary, 0.5),
+              },
+            }}
+            onClick={switchVideo}
+          >
+            {localVideoStreamEnabled ? <CameraAltIcon /> : <NoPhotography />}
+          </Button>
+
+          <Button
+            variant="contained"
+            color="error"
+            size="large"
+            sx={{
+              minWidth: "50px",
+              minHeight: "50px",
+              width: "50px",
+              height: "50px",
+            }}
+            onClick={exitCall}
+          >
+            <MdPhone />
+          </Button>
+
+          <Button
+            variant="contained"
+            size="large"
+            sx={{
+              minWidth: "50px",
+              minHeight: "50px",
+              width: "50px",
+              height: "50px",
+              // color: "white",
+              bgcolor: (theme) => alpha(theme.palette.text.secondary, 0.5),
+              ":focus": {
+                bgcolor: (theme) => alpha(theme.palette.text.secondary, 0.5),
+              },
+            }}
+            onClick={switchAudio}
+          >
+            {localAudioStreamEnabled ? <Mic /> : <MicOffIcon />}
+          </Button>
+        </ButtonGroup>
+      </footer>
     </div>
   );
 }

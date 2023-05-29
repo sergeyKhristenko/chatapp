@@ -1,8 +1,46 @@
-.my-video {
+.video-container {
+  display: flex;
+}
+.big-video {
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 100%;
+  /* height: 100%; */
+  object-fit: cover;
+  position: absolute;
+  z-index: -1;
+}
+
+.small-video {
   transform: rotatey(180deg);
-  width: 320px;
-  height: 240px;
-  border: 1px solid black;
+  right: 0;
+  bottom: 110px;
+  width: 150px;
+  height: 250px;
+  object-fit: cover;
+  /* position: absolute; */
+}
+
+.MuiButton-contained {
+  border-radius: 50px !important;
+}
+
+footer {
+  position: fixed;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  color: white;
+  text-align: center;
+  margin-bottom: 40px;
+  display: flex;
+  justify-content: center;
+}
+
+footer button {
+  border-radius: 50%;
 }
 
 @keyframes App-logo-spin {
@@ -14,17 +52,23 @@
   }
 }
 
-.remote-video-container {
+/* .remote-video-container {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 640px;
   height: 420px;
   border: 1px solid black;
-}
+} */
+
+/* 
 
 .videos-container {
   display: flex;
   align-items: center;
   justify-content: center;
 }
+
+.enabled-false {
+  text-decoration: line-through;
+} */
