@@ -11,12 +11,6 @@ const app = new Koa();
 const router = new Router();
 router.use('/api', apiRouter.routes(), apiRouter.allowedMethods())
 
-// TODO: replace with proper landing
-router.get("/", async (ctx, next) => {
-  ctx.body = "Welcome to Cheap Talk!";
-  await next();
-});
-
 app.use(json());
 app.use(logger());
 app.use(router.routes()).use(router.allowedMethods());

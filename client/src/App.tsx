@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import "./App.css";
 import { Link } from "react-router-dom";
 
@@ -17,7 +17,7 @@ export default function App() {
     <div>
       <header>HEY</header>
       <button onClick={getNewRoomId}>Generate Link To new room</button>
-      {roomLink && <Link to={`room/${roomLink}`}>go to new room</Link>}
+      {roomLink && <Link to={`/room/${roomLink}`}>go to new room</Link>}
     </div>
   );
 }

@@ -1,12 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import IconButton from "@mui/material/IconButton";
 import MdPhone from "@mui/icons-material/Phone";
-import { Button, ButtonGroup, Chip } from "@mui/material";
+import { Button, ButtonGroup } from "@mui/material";
 import MicOffIcon from "@mui/icons-material/MicOff";
 import CameraAltIcon from "@mui/icons-material/CameraAlt";
 import { alpha } from "@mui/material";
 import { Rnd } from "react-rnd";
+import { useNavigate } from "react-router-dom";
 
 import "./Room.css";
 
@@ -14,25 +14,6 @@ import { MediaConnection, Peer } from "peerjs";
 
 import { socket } from "../socket";
 import { Mic, NoPhotography } from "@mui/icons-material";
-
-import { createTheme } from "@mui/material/styles";
-
-const theme = createTheme({
-  palette: {
-    primary: {
-      light: "#757ce8",
-      main: "#3f50b5",
-      dark: "#002884",
-      contrastText: "#fff",
-    },
-    secondary: {
-      light: "#ff7961",
-      main: "#f44336",
-      dark: "#ba000d",
-      contrastText: "#000",
-    },
-  },
-});
 
 const peerJsLocalConfig = {
   host: "/",
@@ -45,13 +26,9 @@ const peerJsConfig = {
 };
 
 export default function Room() {
-  const myPeer = useRef(
-    new Peer(
-      // @ts-ignore
-      undefined,
-      window.location.protocol === "https:" ? peerJsConfig : peerJsLocalConfig
-    )
-  );
+  const [myPeer, setMyPeer] = useState<Peer>();
+
+  const navigate = useNavigate();
 
   const peers = useRef<{ [key: string]: MediaConnection }>({});
 
@@ -69,17 +46,18 @@ export default function Room() {
   const localAudioStream = useRef<MediaStreamTrack>();
   const localVideoStream = useRef<MediaStreamTrack>();
 
+  const [error, setError] = useState<DOMException>();
+
   const [localAudioStreamEnabled, setLocalAudioStreamEnabled] = useState(true);
   const [localVideoStreamEnabled, setLocalVideoStreamEnabled] = useState(true);
 
-  const remoteStreamsObj: { [key: string]: MediaStream } = {};
-  const [remoteStream, setRemoteStream] = useState<MediaStream>();
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>();
   const connections = useRef<{ [key: string]: RTCPeerConnection }>({});
 
   const [localStream, setLocalStream] = useState<MediaStream>();
 
   const callUser = (userId: string, localStream: MediaStream) => {
-    const call = myPeer.current.call(userId, localStream);
+    const call = myPeer!.call(userId, localStream);
     console.log(`calling ${userId}`);
     call.on("stream", (stream) => {
       console.log("on stream");
@@ -90,8 +68,8 @@ export default function Room() {
 
   useEffect(() => {
     // init local stream before setting connection
-    navigator.mediaDevices
-      .getUserMedia({ video: true, audio: true })
+    navigator?.mediaDevices
+      ?.getUserMedia({ video: true, audio: true })
       .then((stream) => {
         stream.getTracks().forEach((track: MediaStreamTrack) => {
           if (track.kind === "audio") localAudioStream.current = track;
@@ -99,45 +77,41 @@ export default function Room() {
         });
 
         setLocalStream(stream);
+
+        setMyPeer(
+          new Peer(
+            // @ts-ignore
+            undefined,
+            window.location.protocol === "https:"
+              ? peerJsConfig
+              : peerJsLocalConfig
+          )
+        );
+      })
+      .catch((e) => {
+        setError(e);
+        console.error(e);
       });
   }, []);
 
   useEffect(() => {
-    if (localStream) {
+    if (localStream && myPeer && roomId) {
       hostVideo.current!.srcObject = localStream;
 
-      myPeer.current.on("open", (id) => {
+      myPeer.on("open", (id) => {
+        console.log(`my id: ${id}`);
         setMyUserId(id);
-        if (roomId) {
-          console.log(`join-room ${roomId} ${id}`);
-          socket.emit("join-room", roomId, id);
-        }
+
+        console.log(`join-room ${roomId}`);
+        socket.emit("join-room", roomId, id);
       });
 
-      myPeer.current.on("disconnected", () => {
-        console.log("reconnecting ");
-        // myPeer.current.reconnect();
-      });
-
-      myPeer.current.on("close", () => {
-        console.log("on close");
-      });
-
-      myPeer.current.on("error", (err) => {
-        console.log("on error");
-        console.log(err);
-      });
-
-      myPeer.current.on("call", (call) => {
+      myPeer.on("call", (call) => {
         console.log("on call");
         call.answer(localStream);
         call.on("stream", (stream) => {
           console.log("on remote stream");
           setRemoteStream(stream);
-        });
-
-        call.on("error", (error) => {
-          console.log("error ", error);
         });
       });
 
@@ -151,48 +125,13 @@ export default function Room() {
         peers.current[userId]?.close();
       });
     }
-  }, [localStream]);
+  }, [localStream, myPeer, roomId, callUser]);
 
   useEffect(() => {
     if (remoteStream) {
       guestVideo.current!.srcObject = remoteStream;
     }
   }, [remoteStream, guestVideo]);
-
-  function reconnect(
-    event?: React.MouseEvent<HTMLButtonElement>,
-    peerUuid?: string
-  ) {
-    if (event) event.preventDefault();
-
-    myPeer.current.reconnect();
-
-    // let registered = false;
-
-    // if (registered) return;
-
-    // return (() => {
-    //   registered = true;
-    //   const reconnectInterval = setInterval(() => {
-    //     console.log("reconnecting...");
-    //     console.log("socket.connected ", socket.connected);
-
-    //     Object.values(connections.current).forEach((connection) =>
-    //       connection.close()
-    //     );
-    //     connections.current = {};
-
-    //     if (socket.connected && roomId) {
-    //       console.log("joining-room");
-
-    //       // @ts-ignore
-    //       socket.emit("join-room", roomId, myUserId);
-
-    //       clearInterval(reconnectInterval);
-    //     }
-    //   }, 1000);
-    // })();
-  }
 
   function setFullScreen(event: React.MouseEvent<HTMLButtonElement>) {
     event.preventDefault();
@@ -202,15 +141,14 @@ export default function Room() {
   function exitCall(event: React.MouseEvent<HTMLButtonElement>) {
     event.preventDefault();
 
-    Object.entries(connections.current).forEach(([userId, connection]) => {
+    Object.entries(peers.current).forEach(([userId, connection]) => {
       connection.close();
       delete connections.current[userId];
     });
 
-    Object.keys(remoteStreamsObj).forEach((userId) => {
-      delete remoteStreamsObj[userId];
-    });
-    // setRemoteStream();
+    setRemoteStream(null);
+
+    navigate("/test");
   }
 
   function switchAudio(event: React.MouseEvent<HTMLButtonElement>) {
@@ -227,17 +165,18 @@ export default function Room() {
 
   return (
     <div>
-      <header>Room {roomId}</header>
+      <header>
+        Room {roomId} <br /> my id {myUserId}
+      </header>
+      {error?.message && <p> Error {error.message}</p>}
       <div className="video-container">
         <Rnd
           default={{
-            x: 240,
-            y: 500,
+            x: window.innerWidth - 150 - 20,
+            y: window.innerHeight - 300 - 50 - 40,
             width: 150,
             height: 250,
           }}
-          // minWidth={150}
-          // minHeight={250}
           bounds="window"
         >
           <video
