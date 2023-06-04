@@ -7,7 +7,7 @@ services:
     ports:
       - "3000:3000"
 
-  # peerjs:
-  #   image: "peerjs/peerjs-server"
-  #   ports:
-  #     - "3001:9000"
+  peerjs:
+    image: "peerjs/peerjs-server"
+    ports:
+      - "3001:9000"
